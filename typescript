@@ -1,0 +1,226 @@
+Script started on Sat 02 Mar 2019 12:57:56 PM EST
+mst611@ice2:~/csci28/pfind-hw$ sh -v ./my_script.sh 
+#/bin/sh -v
+#
+# My test script to test my submission for pfind.
+# It makes the program, performs a few sample tests
+# of my own, and runs the lib215-provided test script.
+#
+
+#-------------------------------------
+#    compile program
+#-------------------------------------
+make clean
+rm -f *.o pfind
+
+make pfind
+gcc -Wall -Wextra -g -c pfind.c
+gcc -Wall -Wextra -g -o pfind pfind.o
+
+#-------------------------------------
+#    create tmp files to store output
+#-------------------------------------
+
+touch my.output
+touch find.output
+
+#-------------------------------------
+#    my positive tests
+#-------------------------------------
+
+#------------------------------------------
+# prints the starting path
+#
+
+./pfind . -name .
+.
+
+find . -name .
+.
+
+#------------------------------------------
+# creates a subdirectory, and searches ".."
+#
+
+mkdir burrow
+cd burrow
+
+../pfind .. > ../my.output
+
+find .. > ../find.output
+
+# compare output
+diff ../my.output ../find.output
+
+# go back and remove test directory
+cd ..
+rm -r burrow
+
+#------------------------------------------
+# test a long directory name
+#
+
+./pfind ~lib215/hw/pfind/pft.d -name cookie > my.output
+
+find ~lib215/hw/pfind/pft.d -name cookie > find.output
+
+# compare output
+diff my.output find.output
+
+#------------------------------------------
+# create and search for symbolic link
+#
+
+ln -s pfind.c pfind-link.tmp
+
+./pfind . -type l
+./pfind-link.tmp
+
+find . -type l
+./pfind-link.tmp
+
+rm pfind-link.tmp
+
+#-------------------------------------
+#    my negative tests
+#-------------------------------------
+
+# demo pathname out of order
+./pfind -name foo .
+./pfind: paths must precede expression: .
+usage: pfind starting_path [-name filename-or-pattern] [-type {f|d|b|c|p|l|s}]
+
+find -name foo .
+find: paths must precede expression: .
+Usage: find [-H] [-L] [-P] [-Olevel] [-D help|tree|search|stat|rates|opt|exec] [path...] [expression]
+
+# invalid type option
+./pfind -type q
+./pfind: Unknown argument to -type: q
+
+find -type q
+find: Unknown argument to -type: q
+
+# pathname cannot start with '-', treated as "-option"
+./pfind -foopath
+./pfind: unknown predicate `-foopath'
+
+find -foopath
+find: unknown predicate `-foopath'
+
+#-------------------------------------
+#    remove tmp files
+#-------------------------------------
+rm my.output find.output
+
+#-------------------------------------
+#    check memory usage
+#-------------------------------------
+valgrind --tool=memcheck --leak-check=yes ./pfind .
+==21404== Memcheck, a memory error detector
+==21404== Copyright (C) 2002-2011, and GNU GPL'd, by Julian Seward et al.
+==21404== Using Valgrind-3.7.0 and LibVEX; rerun with -h for copyright info
+==21404== Command: ./pfind .
+==21404== 
+.
+./README
+./pfind.c
+./.gitignore
+./Makefile
+./pfind.o
+./my_script.sh
+./typescript
+./pfind
+./Plan
+==21404== 
+==21404== HEAP SUMMARY:
+==21404==     in use at exit: 0 bytes in 0 blocks
+==21404==   total heap usage: 12 allocs, 12 frees, 32,921 bytes allocated
+==21404== 
+==21404== All heap blocks were freed -- no leaks are possible
+==21404== 
+==21404== For counts of detected and suppressed errors, rerun with: -v
+==21404== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 2 from 2)
+
+#-------------------------------------
+#    run the course test-script
+#-------------------------------------
+~lib215/hw/pfind/test.pfind
+Making directory for test results..
+
+	Part 0: Checking handling of bad command lines
+	  Test 0a:  find . -name
+		Test 0a..OK
+	  Test 0b:  find . -name x -type
+		Test 0b..OK
+	  Test 0c:  find . -oops bad
+		Test 0c..OK
+
+	Part 1: checking for passwd in /etc
+	  Test 1a:  find /etc -name passwd
+		Test 1a..OK
+	  Test 1b: cd /etc;  find . -name passwd
+		Test 1b..OK
+	  Test 1c: cd /;  find etc -name passwd
+		Test 1c..OK
+
+	Part 2: multi-level search
+	  Test 2a:  find /home/l/i/lib215/hw/pfind/pft.d -name cookie
+		Test 2a..OK
+	  Test 2b: cd /home/l/i/lib215/hw/pfind;  find pft.d -name cookie
+		Test 2b..OK
+
+	Part 3: detect unreadable paths
+		This test searches some unreadable paths..
+		Error messages should be written to stderr.
+	  Test 3:  find /home/l/i/lib215/hw/pfind/pft2.d -name d8
+		Test 3..OK
+
+	Part 4: symlink test
+		If the test seems stuck here, your program
+		is lost in symlink loop.  Press Ctrl-C to stop it.
+	  Test 4:  find /home/l/i/lib215/hw/pfind/pft3.d -name cookie
+		Test 4..OK
+
+	Part 5: pattern matching tests
+	  Test 5a:  find /home/l/i/lib215/hw/pfind/pft.d -name \*1
+		Test 5a..OK
+	  Test 5b:  find /home/l/i/lib215/hw/pfind/pft.d -name dir\*
+		Test 5b..OK
+	  Test 5c:  find /home/l/i/lib215/hw/pfind/pft2.d -name d\?
+		Test 5c..OK
+
+	Part 7: test combinations of args
+	  Test 7a:  find . -type d
+		Test 7a..OK
+	  Test 7b:  find . -type f
+		Test 7b..OK
+	  Test 7c:  find . -type l
+		Test 7c..OK
+	  Test 7d:  find . -name cookie -type d
+		Test 7d..OK
+	  Test 7e:  find . -type f -name cookie
+		Test 7e..OK
+	  Test 7f:  find .
+		Test 7f..OK
+	  Test 7g: cd /tmp;  find .
+		Test 7g..OK
+
+	Part 8: test if starting node is a file
+	  Test 8a:  find findme.n1aStq
+		Test 8a..OK
+	  Test 8b:  find findme.n1aStq -type f
+		Test 8b..OK
+	  Test 8c:  find findme.n1aStq -type d
+		Test 8c..OK
+	  Test 8d:  find findme.n1aStq -name findme.n1aStq
+		Test 8d..OK
+	  Test 8e:  find findme.n1aStq -name not-findme.n1aStq
+		Test 8e..OK
+
+__________________________tests done________
+All tests passed.  None of the errors detected.
+mst611@ice2:~/csci28/pfind-hw$ exit
+exit
+
+Script done on Sat 02 Mar 2019 12:58:05 PM EST

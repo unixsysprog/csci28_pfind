@@ -1,0 +1,93 @@
+README for pfind
+
+  Student: Matthew Thomas
+  Date: 3/2/2019
+
+Summary:
+
+This submission contains the files:
+	README       -- this file, with answers to Q1 and Q3 of the assignment
+	pfind.c      -- main logic to process options and display "find" results
+	Plan         -- design document for this assignment
+	Makefile     -- the Makefile
+	my_script.sh -- my sample test script, including a run of the lib215 script
+	typescript   -- a sample run, performed using my_script.sh
+
+Notes:
+	My pfind program uses some ideas I learned/copied from previous assignments
+	in Bruce's CSCI e26 class in the fall of 2018. Mainly, the idea of the
+	file-scope variable "progname" to keep track of the program name
+	("./pfind") to be used in helper functions that output messages to stderr
+	and exit. Also, construct_path is a helper function that I modified from a
+	"new_string" function I wrote/used in homeworks #4 and #5. For pfind, the
+	function also performs the task of concatenating the parent and child
+	strings; my original "new_string" function only malloc()ed memory and
+	exit(1) if there was an error.
+	
+	I wrote my code using a combination of BBEdit on the Mac, and server-side
+	editing using Emacs. Indentation is 4-space wide tabs. With 4-space tabs,
+	all lines should be under 80-cols wide.
+
+Part I -- Recursive Tools:
+	chown	-- change file owner and group
+	    sample command line:
+	            chown -R mst611 ~/homework_files/
+	            
+	    description: With the recursive option, chown will change the
+	                 owner/group for all files in a specified directory.
+	                 In the command line above, 'chown' will make the user
+	                 mst611 (me), the owner of all files/directories in the
+	                 "homework_files" directory.
+
+	diff	-- compare files line by line
+	    sample command line:
+	            diff -r test_output_a/ test_output_b/
+
+	    description: With the recursive option, diff will compare the files
+	                 and subdirectories it encounters to each other.
+	                 "Regular" diff compares the two files specified, while
+	                 the -r option can be used to compare directories full of
+	                 files.
+
+	getfacl	-- get file access control lists
+        sample command line: 
+                getfacl -R ~/pfind-hw/
+                
+        description: With the recursive option, getfacl acts similarly to
+                     the -lR option for 'ls'. getfacl will recursively print
+                     the name of the file, the owner, group, and the
+                     permissions ("rwx") for user, group, and other.
+
+Part III -- Open File Limit:
+    My solution to the open file limit would be to implement a incorporate a    
+    series of linked lists to store the names of all files and directories. For
+    this implementation, each node in the linked list would include the name of
+    the file and a link to the next node. New nodes are inserted at the end of
+    the linked list, thereby sorting entries in the order they were encountered.
+    
+    This solution would minimize the resources used and file descriptors that
+    remain open by reading all directory entries into the linked list. Similar
+    to my implementation for the homework submission, opendir() would be called
+    to open a directory, and if opened, readdir() would read successive entries
+    into the linked list, using strcpy() to copy the file names, d_name, into
+    the name portion of the linked list.
+    
+    Upon readdir() returning NULL, the linked list would contain all directory
+    entries in the order they appeared. For each node in the linked list, a
+    call to lstat() would get information on each file, checked against the
+    criteria specified by the user (a -name or -type option), and output if
+    matched. Then, a helper function would check if the file referenced by
+    the current node in the linked list is a directory to be searched -- a
+    task that recurse_directory() performs in my actual submission.
+    
+    If a node refers to a subdirectory (not "." or ".." - as that would cause
+    a recursion loop), then the same process is repeated. The current directory
+    name is passed along to construct the full path and a new linked list is
+    created to store the entries of the subdirectory. The subdirectory is opened
+    and closed at the start to prevent the file descriptor from being occupied,
+    and the linked list is traversed.
+    
+    Upon reaching the end of a given linked list, the "next" field points to
+    NULL, the function returns and we are brought back to the previous linked
+    list and continue. Once all linked lists are traversed, the search is
+    complete and the program returns.

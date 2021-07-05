@@ -1,0 +1,179 @@
+  Author: Matthew Thomas
+    Date: 3/2/2019
+Contains: Design details for CSCI E-215 homework 2
+==================================================
+Project: pfind
+
+Purpose: Search directories and subdirectories for files matching criteria.
+
+Outline:
+	pfind recursively searches, depth-first, through directories and any
+	subdirectories it encounters, starting with a provided path. If no options
+	are specified by the user, pfind prints all files it encounters. Users are
+	allowed to specified either a search query -- i.e. "*.c" or "Makefile".
+	Users can also specify a file type. If one, or both, options are specified
+	pfind will filter the results.
+
+Arguments:
+	Proper usage for the pfind program is as follows:
+		./pfind starting_path [-name file-or-pattern] [-type {b|c|d|f|l|p|s}]
+	
+	The starting path must be specified, and be the first argument. The -name
+	and -type arguments are optional, can appear in any order, but must not
+	appear more than once. See the Input section below for more details
+	about the options for -name and -type.
+		
+Input:
+	pfind is controlled via the command line. It requires a starting path and
+	optionally allows for a filename/pattern to be specified and/or a file
+	type.
+	
+	starting_path: a simple get_path() function prints an error message if
+			 the argument provided begins with a '-', which indicates an
+			 option. Otherwise, whatever the string entered by the user is
+			 stored. If it was an invalid path, an error message will be
+			 called later in the program.
+	
+	[-name]: a pattern to be stored in the "findme" variable. If no argument
+	         exists after the "-name" flag, an error is output and the
+	         program exits 1. Otherwise, whatever argument is present is
+	         stored.
+	
+	[-type]: Compared with the st_mode value of a given file after lstat() is
+			 called. The following are the types specified in <sys/stat.h>
+			 with the corresponding letters being those used in the system find
+			 command.
+					b: block special
+					c: character special
+					d: directory
+					f: regular file
+					l: symbolic link
+					p: FIFO
+					s: socket
+
+Output:
+	The output is a list of paths-to-filenames, sorted according to the order
+	of directory entries returned by readdir(). pfind performs a recursive,
+	depth-first search, so the contents of a subdirectory, if any, will precede
+	the remaining entries in the current/parent directory.
+	
+	pfind uses a helper function, construct_path(), to build the path to the
+	current file being examined. If no user-options are specified, or it
+	matches the options specified, printf() outputs it to the screen.
+	
+	There are two exceptions that relate to directories, the "." and ".."
+	entries. ".." entries will be skipped, both in the output and in the
+	recursive search (see Program Flow for why). "." entries will also be
+	skipped, because they are equivalent to previous output. For example,
+	if you start a pfind search in /usr, "bin" is one of the entries; a
+	directory. pfind will open "bin" and start recursively searching. "."
+	is skipped because that is equivalent to "/usr/bin", which has already
+	been output.
+
+Data Structures:
+	All code for the pfind program exists in pfind.c.
+	
+	Several pointers are used, such as a DIR* for the open directory and a
+	struct dirent* to keep track of the current directory entry. A char*
+	pointer is also used that is returned by the construct_path() function.
+	This function malloc()s enough memory to hold the parent (directory) and
+	child (directory entry), the null terminator, and a potential '/' char.
+	
+	If malloc() fails, NULL is returned which will cause lstat() to output an
+	error for a given entry listing in pfind output. If malloc() succeeds, the
+	function will copy into "newstr": 1) just the parent, if parent and child
+	are the same; 2) if parent has a '/' at the end, or child has a leading
+	'/', do not copy an extra slash (ex. a la "find ./subdir/" will output
+	./subdir/ and ./subdir/a, not ./subdir//a); or 3) "parent/child" with 
+	a '/' in between.
+
+Algorithms:
+    The code pfind uses to determine whether or not to output a given
+    directory entry is found in the check_entry() function. It is passed
+    the user-specified "-name" and/or "-type" options, the current directory
+    name (dirname), the current directory entry (fname), and the file mode
+    associated with fname.
+    
+    The default return value for check_entry() is YES, meaning all directory
+    entries WILL be printed UNLESS they do not match any/all options the user
+    specifies. It uses fnmatch() with the FNM_PERIOD flag to compare the
+    current entry with the "findme" pattern specified with "-name". FNM_PERIOD
+    is used so that any leading period in the "fname" must be matched in the
+    pattern in "findme". If no "findme" pattern was given, or the "fname" does
+    not match the patter, return NO and do not print.
+    
+    check_entry() then sees if the user specified an option for "-type" and
+    compares that value with the mode obtained by lstat(). The mode is
+    bitwise-and'ed with the S_IFMT constant specified by <sys/stat.h> and
+    compared with the bitmasked obtained with the get_type() helper function
+    during command-line argument processing. If no "-type" was specified, or
+    the mode does not match, return NO and do not print.
+    
+    Next, it checks for a "." or ".." path, and if the fname and dirname are
+    different -- e.g. fname = . and dirname = ./burrow -- than return NO and
+    do not print. This prevents "."  or ".." sub-directory entries from being
+    output, but allows for the top-level entries to be printed --
+    fname = . and dirname = .
+    
+    The other algorithm present in pfind appears in the construct_path()
+    function. Here, when concatenating a parent and child to create a full
+    path, it checks several conditions to output a valid path. See the Data
+    Structures section above for more info.
+
+Program Flow:
+     1 - Process user options and store arguments in three variables: path,
+         name, and type. A path argument cannot being with a '-' as that
+         symbolizes an option. Accepted options are "-name" and "-type".
+         If a "-type" is specified, the helper function get_type() returns
+         the corresponding bitmask specified in <sys/stat.h>.
+     2 - Call on searchdir() with the user options. A path must be specified
+         otherwise it is a syntax error. Name and type need not be specified,
+         and default to NULL and 0 respectively.
+     3 - Treat the path, "dirname", specified on the command line as a
+         directory and try to open with a call to opendir().
+    3a - If opendir() fails, call on process_file() to treat the starting
+         path as a file. Call lstat() to retrieve file info and check if
+         the file type *was* a directory. If so, there was an error with
+         opendir() and we should print an error message and return. Else,
+         compare the file name and info with the criteria specified by the
+         user. If it matches, output the name of the file.
+    3b - If opendir() succeeds, call on process_dir() to iterate through
+         all entries in the directory. For each entry read in by readdir(),
+         call lstat() to retrieve file info and compare the name/info with
+         the criteria specified by the user. If it matches, output the name
+         of the file.
+    3c - Next, check to see if the current entry is a directory, and if so,
+         recursively call searchdir() with the current path as "dirname".
+     4 - If starting path was a file, searchdir() will return -- no directory
+         to close. If starting path was a directory, once each level of
+         recursion is complete, the malloc()ed path name will be freed and
+         directory closed.
+
+Error Handling:
+    There are three helper functions to assist with reporting errors. "find"
+    has a few differently formatted errors that appear for different reasons,
+    and the three helper functions -- syntax_error(), file_error(), and
+    type_error() -- simplify outputting the correct message.
+    
+    syntax_error() takes no arguments and simply outputs an error about
+    correct usage, copied from the homework assignment. It exits 1 after
+    printing the message to stderr.
+    
+    type_error() is used when processing the user's command-line arguments.
+    It takes the "-option" entered and the value proceeding it. It exits 1
+    after printing the message to stderr.
+    
+    get_type() is another helper function used when processing the "-type"
+    flag. pfind only accepts b, c, d, f, l, p, or s as values for "-type".
+    If a letter besides one of those mentioned is entered, it is an
+    "Unkown argument" error, and the program will exit 1.
+    
+    file_error() takes a path as an argument and is called to output the
+    errno related to an lstat() or opendir() call. 
+    
+Files:
+	pfind uses opendir, readdir, and closedir to process directory entries,
+	which are the files on disk. pfind uses readdir() to get the name of a
+	file and lstat() to get information about the file, like the type. See
+	Output, Data Structures, and Program Flow for more information about
+	pfind reads and processes these directory entries.
